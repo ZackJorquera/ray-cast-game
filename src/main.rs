@@ -2,28 +2,30 @@ use std::time;
 use std::collections::HashMap;
 use glium::{glutin, Surface, Display, Program, Frame};
 
-static GAME_HEIGHT: usize = 10;
-static GAME_WIDTH: usize = 10;
-static GAME: [u8;100] = [
-    1,1,1,1,1,1,1,1,1,1,
-    1,0,1,0,0,0,0,1,0,1,
-    1,0,1,0,1,1,0,0,0,1,
-    1,0,0,0,1,0,0,1,0,1,
-    1,1,2,0,1,0,1,1,0,1,
-    1,0,0,0,1,0,0,1,0,1,
-    1,0,1,0,1,1,0,1,0,1,
-    1,1,0,1,1,1,0,1,0,1,
-    1,0,0,0,0,0,0,1,0,1,
-    1,1,1,1,1,1,1,1,1,1,
+static GAME_HEIGHT: usize = 12;
+static GAME_WIDTH: usize = 12;
+static GAME: [u8;144] = [
+    1,1,1,1,1,1,1,1,1,1,1,1,
+    1,0,1,0,0,0,0,1,0,0,0,1,
+    1,0,1,0,1,1,0,0,0,1,0,1,
+    1,0,0,0,1,0,0,1,0,0,0,1,
+    1,1,2,0,1,0,1,1,0,0,0,1,
+    1,0,0,0,1,0,0,1,0,1,1,1,
+    1,0,1,0,1,1,0,1,0,1,1,1,
+    1,1,0,1,1,1,0,1,0,0,0,1,
+    1,0,0,0,0,0,0,1,0,1,1,1,
+    1,0,1,1,1,1,0,1,0,1,0,1,
+    1,0,0,0,0,0,1,1,0,0,0,1,
+    1,1,1,1,1,1,1,1,1,1,1,1,
 ];
 
-static MOVE_SPEED: f32 = 1.0/3.0;
+static MOVE_SPEED: f32 = 2.0 / GAME_HEIGHT as f32;
 static LOOK_SPEED: f32 = 2.0;
 
 static RAYS: usize = 60;
-static FOV: f32 = 1.6;
+static FOV: f32 = 1.2;
 
-static START_POS: PlayerPos = PlayerPos { position: [0.35, 0.3], dir: 2.0 };
+static START_POS: PlayerPos = PlayerPos { position: [0.8, 0.8], dir: 3.7 };
 
 #[derive(Copy, Clone)]
 struct Vertex 
@@ -232,7 +234,7 @@ fn draw_3d_game(display: &Display, program: &Program, player_pos: &PlayerPos)
         if ray_dist > 100.0 || wall == 0 { continue; }
         // I want to make the walls look more linear but I cant seem to figure out how.
         let dist = ray_dist*f32::cos(f32::abs(ray_ang - player_pos.dir))/f32::cos(f32::abs(ray_ang - player_pos.dir)/10.0);
-        let height = 0.2 / dist;
+        let height = (1.0/GAME_HEIGHT as f32) / dist;
 
         let tl = Vertex { position: [(rays-i) as f32 * 2.0 / rays as f32 - 1.0, 0.0 + height] };
         let br = Vertex { position: [(rays-i-1) as f32 * 2.0 / rays as f32 - 1.0, 0.0 - height] };
