@@ -325,27 +325,41 @@ fn main_loop(display: &Display, program: &Program, player_pos: &PlayerPos, draw_
 
 fn handle_keys(keys: &HashMap<glutin::event::VirtualKeyCode,glutin::event::VirtualKeyCode>, player_pos: &mut PlayerPos, frame_time: f32)
 {
+    let rays = [calc_dist_to_wall(player_pos, 0.0).0,
+        calc_dist_to_wall(player_pos, std::f32::consts::PI / 2.0).0,
+        calc_dist_to_wall(player_pos, std::f32::consts::PI).0, 
+        calc_dist_to_wall(player_pos, - std::f32::consts::PI / 2.0).0];
+    let min_dist = 0.2/GAME_HEIGHT as f32;
     let move_speed = MOVE_SPEED * frame_time;
     let look_speed = LOOK_SPEED * frame_time;
+
     if keys.contains_key(&glutin::event::VirtualKeyCode::W)
     {
-        player_pos.position[0] += move_speed * f32::cos(player_pos.dir);
-        player_pos.position[1] += move_speed * f32::sin(player_pos.dir);
+        if rays[0] >= min_dist && f32::cos(player_pos.dir) > 0.0 || rays[2] >= min_dist && f32::cos(player_pos.dir) < 0.0
+        { player_pos.position[0] += move_speed * f32::cos(player_pos.dir); }
+        if rays[1] >= min_dist && f32::sin(player_pos.dir) > 0.0 || rays[3] >= min_dist && f32::sin(player_pos.dir) < 0.0
+        { player_pos.position[1] += move_speed * f32::sin(player_pos.dir); }
     }
     if keys.contains_key(&glutin::event::VirtualKeyCode::S)
     {
-        player_pos.position[0] -= move_speed * f32::cos(player_pos.dir);
-        player_pos.position[1] -= move_speed * f32::sin(player_pos.dir);
+        if rays[2] >= min_dist && f32::cos(player_pos.dir) > 0.0 || rays[0] >= min_dist && f32::cos(player_pos.dir) < 0.0
+        { player_pos.position[0] -= move_speed * f32::cos(player_pos.dir); }
+        if rays[3] >= min_dist && f32::sin(player_pos.dir) > 0.0 || rays[1] >= min_dist && f32::sin(player_pos.dir) < 0.0
+        { player_pos.position[1] -= move_speed * f32::sin(player_pos.dir); }
     }
     if keys.contains_key(&glutin::event::VirtualKeyCode::A) 
     {
-        player_pos.position[0] -= move_speed * f32::sin(player_pos.dir);
-        player_pos.position[1] += move_speed * f32::cos(player_pos.dir);
+        if rays[2] >= min_dist && f32::sin(player_pos.dir) > 0.0 || rays[0] >= min_dist && f32::sin(player_pos.dir) < 0.0
+        { player_pos.position[0] -= move_speed * f32::sin(player_pos.dir); }
+        if rays[1] >= min_dist && f32::cos(player_pos.dir) > 0.0 || rays[3] >= min_dist && f32::cos(player_pos.dir) < 0.0
+        { player_pos.position[1] += move_speed * f32::cos(player_pos.dir); }
     }
     if keys.contains_key(&glutin::event::VirtualKeyCode::D)
     {
-        player_pos.position[0] += move_speed * f32::sin(player_pos.dir);
-        player_pos.position[1] -= move_speed * f32::cos(player_pos.dir);
+        if rays[0] >= min_dist && f32::sin(player_pos.dir) > 0.0 || rays[2] >= min_dist && f32::sin(player_pos.dir) < 0.0
+        { player_pos.position[0] += move_speed * f32::sin(player_pos.dir); }
+        if rays[3] >= min_dist && f32::cos(player_pos.dir) > 0.0 || rays[1] >= min_dist && f32::cos(player_pos.dir) < 0.0
+        { player_pos.position[1] -= move_speed * f32::cos(player_pos.dir); }
     }
     if keys.contains_key(&glutin::event::VirtualKeyCode::Left) { player_pos.dir += look_speed }
     if keys.contains_key(&glutin::event::VirtualKeyCode::Right) { player_pos.dir -= look_speed }
