@@ -7,15 +7,15 @@ const GAME_WIDTH: usize = 12;
 const GAME: [u8;144] = [
     1,1,1,1,1,1,1,1,1,1,1,1,
     1,0,1,0,0,0,0,1,0,0,0,1,
-    1,0,1,0,1,1,0,0,0,1,0,1,
+    1,0,1,0,1,1,0,0,0,3,0,1,
     1,0,0,0,1,0,0,1,0,0,0,1,
-    1,1,2,0,1,0,1,1,0,0,0,1,
+    1,3,2,0,1,0,1,1,0,0,0,1,
     1,0,0,0,1,0,0,1,0,1,1,1,
     1,0,1,0,1,1,0,1,0,1,1,1,
     1,1,0,1,1,1,0,1,0,0,0,1,
     1,0,0,0,0,0,0,1,0,1,1,1,
-    1,0,1,1,1,1,0,1,0,1,0,1,
-    1,0,0,0,0,0,1,1,0,0,0,1,
+    1,0,3,1,1,1,0,1,0,1,0,1,
+    1,0,0,0,0,0,2,1,0,0,0,1,
     1,1,1,1,1,1,1,1,1,1,1,1,
 ];
 
@@ -251,6 +251,11 @@ fn draw_3d_game(display: &Display, program: &Program, player_pos: &PlayerPos)
             if horz { (0.0, 0.8, 0.0) } 
             else { (0.0, 1.0, 0.0) }
         } 
+        else if wall == 3
+        {
+            if horz { (0.8/f32::sqrt(2.0), 0.0, 0.8/f32::sqrt(2.0)) } 
+            else { (1.0/f32::sqrt(2.0), 0.0, 1.0/f32::sqrt(2.0)) }
+        }
         else
         {
             if horz { (0.8, 0.0, 0.0) } 
@@ -287,6 +292,7 @@ fn draw_2d_game(display: &Display, program: &Program, player_pos: &PlayerPos)
 
             match tile
             {
+                3 => draw_rect(this_tl, this_br, (1.0/f32::sqrt(2.0), 0.0, 1.0/f32::sqrt(2.0)), &mut target, display, program),
                 2 => draw_rect(this_tl, this_br, (0.0, 1.0, 0.0), &mut target, display, program),
                 1 => draw_rect(this_tl, this_br, (1.0, 0.0, 0.0), &mut target, display, program),
                 0 => draw_rect(this_tl, this_br, (0.0, 0.0, 1.0), &mut target, display, program),
@@ -307,9 +313,13 @@ fn draw_2d_game(display: &Display, program: &Program, player_pos: &PlayerPos)
     // draw rays
     for (_, ray_ang, ray_dist, _, wall) in ray_cast(player_pos, RAYS, FOV)
     {
-        let color = if wall == 2 { (0.0, 1.0, 0.0) } 
-            else if wall == 1 { (1.0, 0.0, 0.0) } 
-            else { (0.0, 0.0, 0.0)};
+        let color = match wall
+        {
+            3 => (1.0/f32::sqrt(2.0), 0.0, 1.0/f32::sqrt(2.0)),
+            2 => (0.0, 1.0, 0.0),
+            1 => (1.0, 0.0, 0.0),
+            _ => (0.0, 0.0, 0.0)
+        };
         let ray_dir_ver = Vertex { position: [player_pos.position[0] + ray_dist*f32::cos(ray_ang), player_pos.position[1] + ray_dist*f32::sin(ray_ang)] };
         
         draw_line(player_ver, ray_dir_ver, color, &mut target, display, program);
@@ -381,7 +391,8 @@ fn main() {
     let draw_3d = std::env::args().nth(1).unwrap_or_else(|| String::from("3d")).to_lowercase() != "2d";
 
     let event_loop = glutin::event_loop::EventLoop::new();
-    let wb = glutin::window::WindowBuilder::new().with_title("Ray Trace Game");
+    let wb = glutin::window::WindowBuilder::new()
+        .with_title("Ray Trace Game");
     let cb = glutin::ContextBuilder::new().with_vsync(false);
     let display = glium::Display::new(wb, cb, &event_loop).unwrap();
 
