@@ -2,9 +2,9 @@ use std::time;
 use std::collections::HashMap;
 use glium::{glutin, Surface, Display, Program, Frame};
 
-static GAME_HEIGHT: usize = 12;
-static GAME_WIDTH: usize = 12;
-static GAME: [u8;144] = [
+const GAME_HEIGHT: usize = 12;
+const GAME_WIDTH: usize = 12;
+const GAME: [u8;144] = [
     1,1,1,1,1,1,1,1,1,1,1,1,
     1,0,1,0,0,0,0,1,0,0,0,1,
     1,0,1,0,1,1,0,0,0,1,0,1,
@@ -19,13 +19,13 @@ static GAME: [u8;144] = [
     1,1,1,1,1,1,1,1,1,1,1,1,
 ];
 
-static MOVE_SPEED: f32 = 2.0 / GAME_HEIGHT as f32;
-static LOOK_SPEED: f32 = 2.0;
+const MOVE_SPEED: f32 = 2.0 / GAME_HEIGHT as f32;
+const LOOK_SPEED: f32 = 2.0;
 
-static RAYS: usize = 60;
-static FOV: f32 = 1.2;
+const RAYS: usize = 60;
+const FOV: f32 = 1.2;
 
-static START_POS: PlayerPos = PlayerPos { position: [0.8, 0.8], dir: 3.7 };
+const START_POS: PlayerPos = PlayerPos { position: [0.8, 0.8], dir: 3.7 };
 
 #[derive(Copy, Clone)]
 struct Vertex 
@@ -80,13 +80,14 @@ fn at_wall(pos: (f32, f32), horz: bool) -> u8
 {
     let pos2 = ((pos.0 + 1.0) * (GAME_WIDTH as f32) / 2.0, (pos.1 + 1.0) * (GAME_WIDTH as f32) / 2.0);
     let (mut col, mut row) = (f32::floor(pos2.0) as usize, f32::floor(pos2.1) as usize);
+
     if row as usize * GAME_WIDTH + col < GAME_WIDTH * GAME_HEIGHT
     {
         let v1;
         let v2;
         if horz
         {
-            row = pos2.1.round() as usize;
+            row = pos2.1.round() as usize; // We have to round here because of floating point rounding errors.
             v1 = GAME[row * GAME_WIDTH + col];
             if row != 0
             {
@@ -110,6 +111,12 @@ fn at_wall(pos: (f32, f32), horz: bool) -> u8
                 v2 = v1;
             }
         }
+
+        // If the two options are not wall (0) and wall (1) then we will say we are at a wall.
+        // This also brings up if the two options are a normal wall (1) or a special wall (>1).
+        // I chose to just pick the special wall because that made the code easier.
+        // The only reason this would ever be an issue is if you are inside a wall looking at the
+        // adjacent wall. It's hard to explain.
         u8::max(v1,v2)
     }
     else
@@ -125,7 +132,7 @@ fn calc_dist_to_wall(player_pos: &PlayerPos, angle: f32) -> (f32, bool, u8)
     
     let mut ray_y;
     let mut ray_x;
-    
+     
     let yrungs = (GAME_HEIGHT as f32) / 2.0;
     let xrungs = (GAME_WIDTH as f32) / 2.0;
 
@@ -209,7 +216,7 @@ fn calc_dist_to_wall(player_pos: &PlayerPos, angle: f32) -> (f32, bool, u8)
     {
         (dist_to_vert, false, vert_wall)
     }
-
+    
 }
 
 fn ray_cast(player_pos: &PlayerPos, rays: usize, fov: f32) -> Vec<(usize, f32, f32, bool, u8)>
@@ -333,34 +340,39 @@ fn handle_keys(keys: &HashMap<glutin::event::VirtualKeyCode,glutin::event::Virtu
     let move_speed = MOVE_SPEED * frame_time;
     let look_speed = LOOK_SPEED * frame_time;
 
+    let mut x_move = 0.0;
+    let mut y_move = 0.0;
+
     if keys.contains_key(&glutin::event::VirtualKeyCode::W)
     {
-        if rays[0] >= min_dist && f32::cos(player_pos.dir) > 0.0 || rays[2] >= min_dist && f32::cos(player_pos.dir) < 0.0
-        { player_pos.position[0] += move_speed * f32::cos(player_pos.dir); }
-        if rays[1] >= min_dist && f32::sin(player_pos.dir) > 0.0 || rays[3] >= min_dist && f32::sin(player_pos.dir) < 0.0
-        { player_pos.position[1] += move_speed * f32::sin(player_pos.dir); }
+        x_move += move_speed * f32::cos(player_pos.dir);
+        y_move += move_speed * f32::sin(player_pos.dir);
     }
     if keys.contains_key(&glutin::event::VirtualKeyCode::S)
     {
-        if rays[2] >= min_dist && f32::cos(player_pos.dir) > 0.0 || rays[0] >= min_dist && f32::cos(player_pos.dir) < 0.0
-        { player_pos.position[0] -= move_speed * f32::cos(player_pos.dir); }
-        if rays[3] >= min_dist && f32::sin(player_pos.dir) > 0.0 || rays[1] >= min_dist && f32::sin(player_pos.dir) < 0.0
-        { player_pos.position[1] -= move_speed * f32::sin(player_pos.dir); }
+        x_move -= move_speed * f32::cos(player_pos.dir);
+        y_move -= move_speed * f32::sin(player_pos.dir);
     }
     if keys.contains_key(&glutin::event::VirtualKeyCode::A) 
     {
-        if rays[2] >= min_dist && f32::sin(player_pos.dir) > 0.0 || rays[0] >= min_dist && f32::sin(player_pos.dir) < 0.0
-        { player_pos.position[0] -= move_speed * f32::sin(player_pos.dir); }
-        if rays[1] >= min_dist && f32::cos(player_pos.dir) > 0.0 || rays[3] >= min_dist && f32::cos(player_pos.dir) < 0.0
-        { player_pos.position[1] += move_speed * f32::cos(player_pos.dir); }
+        x_move -= move_speed * f32::sin(player_pos.dir);
+        y_move += move_speed * f32::cos(player_pos.dir);
     }
     if keys.contains_key(&glutin::event::VirtualKeyCode::D)
     {
-        if rays[0] >= min_dist && f32::sin(player_pos.dir) > 0.0 || rays[2] >= min_dist && f32::sin(player_pos.dir) < 0.0
-        { player_pos.position[0] += move_speed * f32::sin(player_pos.dir); }
-        if rays[3] >= min_dist && f32::cos(player_pos.dir) > 0.0 || rays[1] >= min_dist && f32::cos(player_pos.dir) < 0.0
-        { player_pos.position[1] -= move_speed * f32::cos(player_pos.dir); }
+        x_move += move_speed * f32::sin(player_pos.dir);
+        y_move -= move_speed * f32::cos(player_pos.dir);
     }
+
+    if rays[0] >= min_dist && x_move > 0.0 || rays[2] >= min_dist && x_move < 0.0
+    {
+        player_pos.position[0] += x_move;
+    }
+    if rays[1] >= min_dist && y_move > 0.0 || rays[3] >= min_dist && y_move < 0.0
+    {
+        player_pos.position[1] += y_move;
+    }
+
     if keys.contains_key(&glutin::event::VirtualKeyCode::Left) { player_pos.dir += look_speed }
     if keys.contains_key(&glutin::event::VirtualKeyCode::Right) { player_pos.dir -= look_speed }
 }
@@ -370,7 +382,7 @@ fn main() {
 
     let event_loop = glutin::event_loop::EventLoop::new();
     let wb = glutin::window::WindowBuilder::new().with_title("Ray Trace Game");
-    let cb = glutin::ContextBuilder::new();
+    let cb = glutin::ContextBuilder::new().with_vsync(false);
     let display = glium::Display::new(wb, cb, &event_loop).unwrap();
 
     let vertex_shader_src = r#"
