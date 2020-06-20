@@ -3,6 +3,9 @@ name = "ray-cast-game"
 version = "0.1.0"
 authors = ["ZackJorquera <jorquerazack@gmail.com>"]
 edition = "2018"
+description = "A small simple ray-casted 3d (ish) game."
+repository = "https://github.com/ZackJorquera/ray-cast-game"
+readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

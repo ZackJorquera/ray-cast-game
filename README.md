@@ -14,4 +14,4 @@ cargo run --release 2d
 ```
 
 ## Image
-![img1](https://user-images.githubusercontent.com/10931088/84836575-39366000-aff3-11ea-9311-614e69acf33a.PNG)
+![img1](https://user-images.githubusercontent.com/10931088/85191451-2d110380-b27c-11ea-87f4-cc67244dd032.PNG)

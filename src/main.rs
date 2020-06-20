@@ -1,3 +1,7 @@
+//! A small simple ray-casted 3d (ish) game. It uses the same method that wolfenstein 3d used to have "3d".
+//!
+//! I built this using the OpenGL wrapper glium.
+
 use std::time;
 use std::collections::HashMap;
 use glium::{glutin, Surface, Display, Program, Frame};
@@ -23,8 +27,7 @@ const GAME: [u8;144] = [
 const MOVE_SPEED: f32 = 4.0 / GAME_HEIGHT as f32;
 const LOOK_SPEED: f32 = 2.0;
 
-// I keep this low because it make it look cooler. bump it wo 256 for better quality.
-const RAYS: usize = 64;
+const RAYS: usize = 256;
 const FOV: f32 = 1.2;
 
 const START_POS: PlayerPos = PlayerPos { position: [0.8, 0.8], dir: 3.7 };
@@ -58,15 +61,16 @@ struct Pos
     position: [f32; 2],
 }
 
-/// We will draw the rects with 4 triangles:
-/// ```
+/// Draws a quad from 2 triangles.
+/// ```text
 ///  ___
 /// |\  |
 /// | \ |
 /// |  \|
 ///  ---
 /// ```
-fn draw_quad(top_left: Pos, top_right: Pos, bottom_right: Pos, bottom_left: Pos, color_tex: ColorTex, mul: f32, target: &mut Frame, display: &Display, program: &Program)
+fn draw_quad(top_left: Pos, top_right: Pos, bottom_right: Pos, bottom_left: Pos, color_tex: ColorTex,
+    mul: f32, target: &mut Frame, display: &Display, program: &Program)
 {
     let tex_coords = match color_tex
     {
@@ -104,7 +108,8 @@ fn draw_quad(top_left: Pos, top_right: Pos, bottom_right: Pos, bottom_left: Pos,
     target.draw(&shape_vb, &indices, program, &uniforms, &Default::default()).unwrap();
 }
 
-fn draw_rect(top_left: Pos, bottom_right: Pos, color_tex: ColorTex, mul: f32, target: &mut Frame, display: &Display, program: &Program)
+fn draw_rect(top_left: Pos, bottom_right: Pos, color_tex: ColorTex, mul: f32, target: &mut Frame,
+    display: &Display, program: &Program)
 {
     let top_right = Pos { position: [ bottom_right.position[0],  top_left.position[1]] };
     let bottom_left = Pos { position: [ top_left.position[0], bottom_right.position[1]] };
@@ -112,7 +117,8 @@ fn draw_rect(top_left: Pos, bottom_right: Pos, color_tex: ColorTex, mul: f32, ta
     draw_quad(top_left, top_right, bottom_right, bottom_left, color_tex, mul, target, display, program)
 }
 
-fn draw_line(v1: Pos, v2: Pos, color: (f32,f32,f32), mul: f32, empty_tex: &Texture2d, target: &mut Frame, display: &Display, program: &Program)
+fn draw_line(v1: Pos, v2: Pos, color: (f32,f32,f32), mul: f32, empty_tex: &Texture2d, target: &mut Frame,
+    display: &Display, program: &Program)
 {
     let line = vec![
         Vertex { position: v1.position, tex_coords: [0.0,0.0] },
@@ -283,8 +289,9 @@ fn ray_cast(player_pos: &PlayerPos, rays: usize, fov: f32) -> Vec<(usize, f32, f
         .collect()
 }
 
-fn get_colortex_from_wall<'a>(wall: u8, colors: bool, main_wall_texture: &'a Texture2d, wall2_texture: &'a Texture2d,
-    wall3_texture: &'a Texture2d, empty_tex: &'a Texture2d, tex_coords: ([f32; 2], [f32; 2], [f32; 2], [f32; 2]))
+fn get_colortex_from_wall<'a>(wall: u8, colors: bool, main_wall_texture: &'a Texture2d, 
+    wall2_texture: &'a Texture2d, wall3_texture: &'a Texture2d, empty_tex: &'a Texture2d, 
+    tex_coords: ([f32; 2], [f32; 2], [f32; 2], [f32; 2]))
     -> ColorTex<'a>
 {
     match (wall, colors)
@@ -419,7 +426,8 @@ fn main_loop(display: &Display, program: &Program, player_pos: &PlayerPos, draw_
     }
 }
 
-fn handle_keys(keys: &HashMap<glutin::event::VirtualKeyCode,glutin::event::VirtualKeyCode>, player_pos: &mut PlayerPos, frame_time: f32)
+fn move_player(keys: &HashMap<glutin::event::VirtualKeyCode,glutin::event::VirtualKeyCode>, 
+    player_pos: &mut PlayerPos, frame_time: f32)
 {
     let rays = [calc_dist_to_wall(player_pos, 0.0).0,
         calc_dist_to_wall(player_pos, std::f32::consts::PI / 2.0).0,
@@ -563,7 +571,7 @@ fn main() {
             },
             _ => (),
         }
-        handle_keys(&keys_down, &mut player_pos, frame_time);
+        move_player(&keys_down, &mut player_pos, frame_time);
         main_loop(&display, &program, &player_pos, draw_3d, &main_wall_texture, &wall2_texture, 
             &wall3_texture, &empty_tex);
     });
