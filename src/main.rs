@@ -1,15 +1,20 @@
 //! A small simple ray-casted 3d (ish) game. It uses the same method that wolfenstein 3d used to have "3d".
 //!
-//! I built this using the OpenGL wrapper glium.
+//! I built this using the OpenGL wrapper [`glium`].
+//! 
+//! [`glium`]: ../glium/index.html
 
 use std::time;
 use std::collections::HashMap;
 use glium::{glutin, Surface, Display, Program, Frame};
 use glium::texture::Texture2d;
 
+/// Height of play space.
 const GAME_HEIGHT: usize = 12;
+/// Width of play space.
 const GAME_WIDTH: usize = 12;
-const GAME: [u8;144] = [
+/// Array that defines the layout of the play space.
+const GAME: [u8; GAME_HEIGHT * GAME_WIDTH] = [
     1,1,1,1,1,1,1,1,1,1,1,1,
     1,0,1,0,0,0,0,1,0,0,0,1,
     1,0,1,0,1,1,0,0,0,3,0,1,
@@ -24,22 +29,42 @@ const GAME: [u8;144] = [
     1,1,1,1,1,1,1,1,1,1,1,1,
 ];
 
+/// The speed that the player moves in units per second.
 const MOVE_SPEED: f32 = 4.0 / GAME_HEIGHT as f32;
+/// The speed that the player turns in rads per second.
 const LOOK_SPEED: f32 = 2.0;
 
+// TODO: turn some of these into args
+
+/// The number of rays used to render the game.
 const RAYS: usize = 256;
+/// Field of view
 const FOV: f32 = 1.2;
 
-const START_POS: PlayerPos = PlayerPos { position: [0.8, 0.8], dir: 3.7 };
+const START_POS: PlayerPos = PlayerPos { position: [0.8, 0.8], ang: 3.7 };
 
+/// Whether the game should be rendered with colors or textures.
 const COLORS: bool = false;
 
 enum ColorTex<'a>
 {
+    /// Tells the [`draw_quad`] and [`draw_rect`] to draw with the given color. Note, the
+    ///  first param, the `&Texture2d` is never used and should be set to an empty texture.
+    /// 
+    /// [`draw_quad`]: fn.draw_quad.html
+    /// [`draw_rect`]: fn.draw_rect.html
     Color(&'a Texture2d, (f32,f32,f32)),
+    /// Tells the [`draw_quad`] and [`draw_rect`] to draw with the given texture. The second
+    /// param are the texture coords.
+    /// 
+    /// [`draw_quad`]: fn.draw_quad.html
+    /// [`draw_rect`]: fn.draw_rect.html
     Texture(&'a Texture2d, ([f32; 2],[f32; 2],[f32; 2],[f32; 2]))
 }
 
+/// `Vertex` is used for [`glium`]'s draw functions.
+/// 
+/// [`glium`]: ../glium/index.html
 #[derive(Copy, Clone)]
 struct Vertex 
 {
@@ -52,7 +77,7 @@ glium::implement_vertex!(Vertex, position, tex_coords);
 struct PlayerPos
 {
     position: [f32; 2],
-    dir: f32
+    ang: f32
 }
 
 #[derive(Copy, Clone)]
@@ -61,7 +86,7 @@ struct Pos
     position: [f32; 2],
 }
 
-/// Draws a quad from 2 triangles.
+/// Draws a quad with 2 triangles.
 /// ```text
 ///  ___
 /// |\  |
@@ -86,8 +111,30 @@ fn draw_quad(top_left: Pos, top_right: Pos, bottom_right: Pos, bottom_left: Pos,
     let shape = vec![vertex1, vertex2, vertex3, vertex4];
 
     // upload shape data to video memory
-    let shape_vb = glium::VertexBuffer::new(display, &shape).unwrap();
-    let indices = glium::IndexBuffer::new(display, glium::index::PrimitiveType::TrianglesList, &[0u16,1,3,1,2,3][..]).unwrap();
+    let shape_vb = match glium::VertexBuffer::new(display, &shape)
+    {
+        Ok(vb) => vb,
+        Err(glium::vertex::BufferCreationError::BufferCreationError(
+            glium::buffer::BufferCreationError::OutOfMemory)) =>
+            {
+                println!("{:?}", glium::buffer::BufferCreationError::OutOfMemory);
+                // I just want to skip for now
+                return;
+            },
+        e => e.unwrap() // I don't like this but the only other option is not supported err.
+    };
+    let indices = match glium::IndexBuffer::new(display, glium::index::PrimitiveType::TrianglesList, &[0u16,1,3,1,2,3][..])
+    {
+        Ok(vb) => vb,
+        Err(glium::index::BufferCreationError::BufferCreationError(
+            glium::buffer::BufferCreationError::OutOfMemory)) =>
+            {
+                println!("{:?}", glium::buffer::BufferCreationError::OutOfMemory);
+                // I just want to skip for now
+                return;
+            },
+        e => e.unwrap() // I don't like this but the only other option is not supported err.
+    };
 
     let uniforms = match color_tex
     {
@@ -104,10 +151,15 @@ fn draw_quad(top_left: Pos, top_right: Pos, bottom_right: Pos, bottom_left: Pos,
             mult: mul
         }
     };
-
+    
+    // Note that DrawErrors tend to be if the code was writen wrong and would cause a failure every time.
+    // That is why I think an unwrap is ok
     target.draw(&shape_vb, &indices, program, &uniforms, &Default::default()).unwrap();
 }
 
+/// A wrapper around [`draw_quad`].
+/// 
+/// [`draw_quad`]: fn.draw_quad.html
 fn draw_rect(top_left: Pos, bottom_right: Pos, color_tex: ColorTex, mul: f32, target: &mut Frame,
     display: &Display, program: &Program)
 {
@@ -117,6 +169,7 @@ fn draw_rect(top_left: Pos, bottom_right: Pos, color_tex: ColorTex, mul: f32, ta
     draw_quad(top_left, top_right, bottom_right, bottom_left, color_tex, mul, target, display, program)
 }
 
+/// Draws a line segment.
 fn draw_line(v1: Pos, v2: Pos, color: (f32,f32,f32), mul: f32, empty_tex: &Texture2d, target: &mut Frame,
     display: &Display, program: &Program)
 {
@@ -124,7 +177,18 @@ fn draw_line(v1: Pos, v2: Pos, color: (f32,f32,f32), mul: f32, empty_tex: &Textu
         Vertex { position: v1.position, tex_coords: [0.0,0.0] },
         Vertex { position: v2.position, tex_coords: [0.0,0.0] },
     ];
-    let line_vb = glium::VertexBuffer::new(display, &line).unwrap();
+    let line_vb = match glium::VertexBuffer::new(display, &line)
+    {
+        Ok(vb) => vb,
+        Err(glium::vertex::BufferCreationError::BufferCreationError(
+            glium::buffer::BufferCreationError::OutOfMemory)) =>
+            {
+                println!("{:?}", glium::buffer::BufferCreationError::OutOfMemory);
+                // I just want to skip for now
+                return;
+            },
+        e => e.unwrap() // I don't like this but the only other option is not supported err.
+    };
     let indices = glium::index::NoIndices(glium::index::PrimitiveType::LinesList);
 
     let uniforms = glium::uniform! {
@@ -134,6 +198,8 @@ fn draw_line(v1: Pos, v2: Pos, color: (f32,f32,f32), mul: f32, empty_tex: &Textu
             mult: mul
     };
     
+    // Note that DrawErrors tend to be if the code was writen wrong and would cause a failure every time.
+    // That is why I think an unwrap is ok
     target.draw(&line_vb, &indices, program, &uniforms, &Default::default()).unwrap();
 }
 
@@ -186,6 +252,9 @@ fn at_wall(pos: (f32, f32), horz: bool) -> u8
     }
 }
 
+/// Preforms a single ray cast.
+/// 
+/// Returns a tuple of the form `(ray_dist, if_on_horz, wall_type, ray_end_pos)`.
 fn calc_dist_to_wall(player_pos: &PlayerPos, angle: f32) -> (f32, bool, u8, (f32,f32))
 {
     let mut yoffset;
@@ -281,15 +350,20 @@ fn calc_dist_to_wall(player_pos: &PlayerPos, angle: f32) -> (f32, bool, u8, (f32
     
 }
 
-fn ray_cast(player_pos: &PlayerPos, rays: usize, fov: f32) -> Vec<(usize, f32, f32, bool, u8, (f32,f32))>
+/// Preforms all of the ray casts for the rendering with [`calc_dist_to_wall`].
+/// 
+/// Returns a vector of tuples of the form `(ray_num, ray_ang, ray_dist, if_on_horz, wall_type, ray_pos)`.
+/// 
+/// [`calc_dist_to_wall`]: fn.calc_dist_to_wall.html
+fn ray_casts_in_view(player_pos: &PlayerPos, rays: usize, fov: f32) -> Vec<(usize, f32, f32, bool, u8, (f32,f32))>
 {
     (0..rays)
-        .map(|i| (i, player_pos.dir - fov/2.0 + i as f32 * fov / (rays as f32)))
+        .map(|i| (i, player_pos.ang - fov/2.0 + i as f32 * fov / (rays as f32)))
         .map(|(i, ray_ang)| {let res = calc_dist_to_wall(player_pos, ray_ang); (i, ray_ang, res.0, res.1, res.2, res.3)})
         .collect()
 }
 
-fn get_colortex_from_wall<'a>(wall: u8, colors: bool, main_wall_texture: &'a Texture2d, 
+fn get_colortex_for_wall<'a>(wall: u8, colors: bool, main_wall_texture: &'a Texture2d, 
     wall2_texture: &'a Texture2d, wall3_texture: &'a Texture2d, empty_tex: &'a Texture2d, 
     tex_coords: ([f32; 2], [f32; 2], [f32; 2], [f32; 2]))
     -> ColorTex<'a>
@@ -308,7 +382,8 @@ fn get_colortex_from_wall<'a>(wall: u8, colors: bool, main_wall_texture: &'a Tex
     }
 }
 
-// TODO: dont re draw calc/create the rects every time
+// TODO: dont re draw calc/create the rects every time, use more uniforms
+/// Renders the game in 3d mode.
 fn draw_3d_game(display: &Display, program: &Program, player_pos: &PlayerPos, main_wall_texture: &Texture2d, 
     wall2_texture: &Texture2d, wall3_texture: &Texture2d, empty_tex: &Texture2d)
 {
@@ -319,11 +394,11 @@ fn draw_3d_game(display: &Display, program: &Program, player_pos: &PlayerPos, ma
 
     let rays = RAYS;
 
-    for (i, ray_ang, ray_dist, horz, wall, ray_pos) in ray_cast(player_pos, rays, FOV)
+    for (i, ray_ang, ray_dist, horz, wall, ray_pos) in ray_casts_in_view(player_pos, rays, FOV)
     {
         if ray_dist > 100.0 || wall == 0 { continue; }
         // I want to make the walls look more linear but I cant seem to figure out how.
-        let dist = ray_dist*f32::cos(f32::abs(ray_ang - player_pos.dir));//f32::cos(f32::abs(ray_ang - player_pos.dir)/10.0);
+        let dist = ray_dist*f32::cos(f32::abs(ray_ang - player_pos.ang));//f32::cos(f32::abs(ray_ang - player_pos.dir)/10.0);
         let height = (2.0/GAME_HEIGHT as f32) / dist;
 
         let pos_on_wall = if horz
@@ -346,15 +421,16 @@ fn draw_3d_game(display: &Display, program: &Program, player_pos: &PlayerPos, ma
         let tex_coords = ([pos_on_wall,1.0],[pos_on_wall+slice_width,1.0],
             [pos_on_wall+slice_width,0.0],[pos_on_wall, 0.0]);
 
-        let color_tex = get_colortex_from_wall(wall, COLORS, main_wall_texture, wall2_texture, wall3_texture, empty_tex, tex_coords);
+        let color_tex = get_colortex_for_wall(wall, COLORS, main_wall_texture, wall2_texture, wall3_texture, empty_tex, tex_coords);
         let mul = if horz {0.8} else {1.0};
 
         draw_rect(tl, br, color_tex, mul, &mut target, display, program);
     }
 
-    target.finish().unwrap();
+    let _ = target.finish();
 }
 
+/// Renders the game in 2d mode.
 fn draw_2d_game(display: &Display, program: &Program, player_pos: &PlayerPos, main_wall_texture: &Texture2d, 
     wall2_texture: &Texture2d, wall3_texture: &Texture2d, empty_tex: &Texture2d)
 {
@@ -380,7 +456,7 @@ fn draw_2d_game(display: &Display, program: &Program, player_pos: &PlayerPos, ma
 
             let tex_coords = ([0.0,1.0],[1.0,1.0],[1.0,0.0],[0.0, 0.0]);
 
-            let color_tex = get_colortex_from_wall(tile, COLORS, main_wall_texture, wall2_texture, wall3_texture, empty_tex, tex_coords);
+            let color_tex = get_colortex_for_wall(tile, COLORS, main_wall_texture, wall2_texture, wall3_texture, empty_tex, tex_coords);
             
             draw_rect(this_tl, this_br, color_tex, 1.0, &mut target, display, program);
         }
@@ -391,12 +467,12 @@ fn draw_2d_game(display: &Display, program: &Program, player_pos: &PlayerPos, ma
     let player_ver = Pos {position: player_pos.position };
     let player_tl = Pos { position: [player_pos.position[0] - player_size/2.0, player_pos.position[1] - player_size/2.0] };
     let player_br = Pos { position: [player_pos.position[0] + player_size/2.0, player_pos.position[1] + player_size/2.0] };
-    let player_dir = Pos { position: [player_pos.position[0] + 0.1*f32::cos(player_pos.dir), player_pos.position[1] + 0.1*f32::sin(player_pos.dir)] };
+    let player_dir = Pos { position: [player_pos.position[0] + 0.1*f32::cos(player_pos.ang), player_pos.position[1] + 0.1*f32::sin(player_pos.ang)] };
     draw_rect(player_tl, player_br, ColorTex::Color(empty_tex, (0.1, 0.9, 0.1)), 1.0, &mut target, display, program);
     draw_line(player_ver, player_dir, (1.0,1.0,0.0), 1.0, empty_tex, &mut target, display, program);
 
     // draw rays
-    for (_, ray_ang, ray_dist, _, wall, _) in ray_cast(player_pos, RAYS, FOV)
+    for (_, ray_ang, ray_dist, _, wall, _) in ray_casts_in_view(player_pos, RAYS, FOV)
     {
         let color = match wall
         {
@@ -410,9 +486,10 @@ fn draw_2d_game(display: &Display, program: &Program, player_pos: &PlayerPos, ma
         draw_line(player_ver, ray_dir_ver, color, 1.0, empty_tex, &mut target, display, program);
     }
 
-    target.finish().unwrap();
+    let _ = target.finish();
 }
 
+/// Renders a single frame for the game.
 fn main_loop(display: &Display, program: &Program, player_pos: &PlayerPos, draw_3d: bool, 
     main_wall_texture: &Texture2d, wall2_texture: &Texture2d, wall3_texture: &Texture2d, empty_tex: &Texture2d)
 {
@@ -426,6 +503,7 @@ fn main_loop(display: &Display, program: &Program, player_pos: &PlayerPos, draw_
     }
 }
 
+/// Moves the player based on what keys are pressed and what walls are near by.
 fn move_player(keys: &HashMap<glutin::event::VirtualKeyCode,glutin::event::VirtualKeyCode>, 
     player_pos: &mut PlayerPos, frame_time: f32)
 {
@@ -442,23 +520,23 @@ fn move_player(keys: &HashMap<glutin::event::VirtualKeyCode,glutin::event::Virtu
 
     if keys.contains_key(&glutin::event::VirtualKeyCode::W)
     {
-        x_move += move_speed * f32::cos(player_pos.dir);
-        y_move += move_speed * f32::sin(player_pos.dir);
+        x_move += move_speed * f32::cos(player_pos.ang);
+        y_move += move_speed * f32::sin(player_pos.ang);
     }
     if keys.contains_key(&glutin::event::VirtualKeyCode::S)
     {
-        x_move -= move_speed * f32::cos(player_pos.dir);
-        y_move -= move_speed * f32::sin(player_pos.dir);
+        x_move -= move_speed * f32::cos(player_pos.ang);
+        y_move -= move_speed * f32::sin(player_pos.ang);
     }
     if keys.contains_key(&glutin::event::VirtualKeyCode::A) 
     {
-        x_move -= move_speed * f32::sin(player_pos.dir);
-        y_move += move_speed * f32::cos(player_pos.dir);
+        x_move -= move_speed * f32::sin(player_pos.ang);
+        y_move += move_speed * f32::cos(player_pos.ang);
     }
     if keys.contains_key(&glutin::event::VirtualKeyCode::D)
     {
-        x_move += move_speed * f32::sin(player_pos.dir);
-        y_move -= move_speed * f32::cos(player_pos.dir);
+        x_move += move_speed * f32::sin(player_pos.ang);
+        y_move -= move_speed * f32::cos(player_pos.ang);
     }
 
     if rays[0] >= min_dist && x_move > 0.0 || rays[2] >= min_dist && x_move < 0.0
@@ -470,17 +548,19 @@ fn move_player(keys: &HashMap<glutin::event::VirtualKeyCode,glutin::event::Virtu
         player_pos.position[1] += y_move;
     }
 
-    if keys.contains_key(&glutin::event::VirtualKeyCode::Left) { player_pos.dir += look_speed }
-    if keys.contains_key(&glutin::event::VirtualKeyCode::Right) { player_pos.dir -= look_speed }
+    if keys.contains_key(&glutin::event::VirtualKeyCode::Left) { player_pos.ang += look_speed }
+    if keys.contains_key(&glutin::event::VirtualKeyCode::Right) { player_pos.ang -= look_speed }
 }
 
-fn load_texture(file_path: &str, display: &Display) -> Texture2d
+/// Loads a texture from a image file.
+fn load_texture(file_path: &str, display: &Display) -> Result<Texture2d, glium::texture::TextureCreationError>
 {
     let main_wall_texture_image = image::open(file_path).unwrap().to_rgba();
     let main_wall_texture_image_dimensions = main_wall_texture_image.dimensions();
-    let main_wall_texture_image = glium::texture::RawImage2d::from_raw_rgba_reversed(&main_wall_texture_image.into_raw(), main_wall_texture_image_dimensions);
+    let main_wall_texture_image = glium::texture::RawImage2d::from_raw_rgba_reversed(
+        &main_wall_texture_image.into_raw(), main_wall_texture_image_dimensions);
 
-    return Texture2d::new(display, main_wall_texture_image).unwrap();
+    Texture2d::new(display, main_wall_texture_image)
 }
 
 fn main() {
@@ -493,9 +573,9 @@ fn main() {
     let display = glium::Display::new(wb, cb, &event_loop).unwrap();
 
     // load textures
-    let main_wall_texture = load_texture(r"textures\stone.jpg", &display);
-    let wall2_texture = load_texture(r"textures\brick.png", &display);
-    let wall3_texture = load_texture(r"textures\mossy.jpg", &display);
+    let main_wall_texture = load_texture(r"textures\stone.jpg", &display).unwrap();
+    let wall2_texture = load_texture(r"textures\brick.png", &display).unwrap();
+    let wall3_texture = load_texture(r"textures\mossy.jpg", &display).unwrap();
     let empty_tex = Texture2d::empty(&display, 1,1).unwrap();
 
     let vertex_shader_src = r#"
